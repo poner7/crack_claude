@@ -50,10 +50,10 @@ else
     echo '  export PATH="$HOME/.cac/bin:$PATH"'
 fi
 
-# 3. 初始化 wrapper 和 fake ioreg
+# 3. 初始化 wrapper 和 ioreg shim
 printf "初始化 ... "
 export PATH="$BIN_DIR:$PATH"
-"$BIN_DIR/cac" setup --quiet 2>/dev/null || "$BIN_DIR/cac" setup
+"$BIN_DIR/cac" setup 2>&1 | grep -E "✓|错误" || true
 green "✓"
 
 echo
