@@ -1,5 +1,7 @@
 # ── utils: 颜色、读写、UUID、proxy 解析 ───────────────────────
 
+CAC_VERSION="1.0.0"
+
 _read()   { [[ -f "$1" ]] && tr -d '[:space:]' < "$1" || echo "${2:-}"; }
 _bold()   { printf '\033[1m%s\033[0m' "$*"; }
 _green()  { printf '\033[32m%s\033[0m' "$*"; }
@@ -75,6 +77,90 @@ _require_env() {
 _find_real_claude() {
     PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "$CAC_DIR/bin" | tr '\n' ':') \
         command -v claude 2>/dev/null || true
+}
+
+_detect_rc_file() {
+    if [[ -f "$HOME/.zshrc" ]]; then
+        echo "$HOME/.zshrc"
+    elif [[ -f "$HOME/.bashrc" ]]; then
+        echo "$HOME/.bashrc"
+    elif [[ -f "$HOME/.bash_profile" ]]; then
+        echo "$HOME/.bash_profile"
+    else
+        echo ""
+    fi
+}
+
+_install_method() {
+    local self="$0"
+    local resolved="$self"
+    if [[ -L "$self" ]]; then
+        resolved=$(readlink "$self" 2>/dev/null || echo "$self")
+        # 处理相对路径的符号链接
+        if [[ "$resolved" != /* ]]; then
+            resolved="$(dirname "$self")/$resolved"
+        fi
+    fi
+    if [[ "$resolved" == *"node_modules"* ]] || [[ -f "$(dirname "$resolved")/package.json" ]]; then
+        echo "npm"
+    else
+        echo "bash"
+    fi
+}
+
+_write_path_to_rc() {
+    local rc_file="${1:-$(_detect_rc_file)}"
+    if [[ -z "$rc_file" ]]; then
+        echo "  $(_yellow '⚠') 未找到 shell 配置文件，请手动添加 PATH："
+        echo '    export PATH="$HOME/bin:$PATH"'
+        echo '    export PATH="$HOME/.cac/bin:$PATH"'
+        return 0
+    fi
+
+    if grep -q '# >>> cac >>>' "$rc_file" 2>/dev/null; then
+        echo "  ✓ PATH 已存在于 $rc_file，跳过"
+        return 0
+    fi
+
+    # 兼容旧格式：如果存在旧的 cac PATH 行，先移除
+    if grep -q '\.cac/bin' "$rc_file" 2>/dev/null; then
+        _remove_path_from_rc "$rc_file"
+    fi
+
+    cat >> "$rc_file" << 'EOF'
+
+# >>> cac — Claude Code Cloak >>>
+export PATH="$HOME/bin:$PATH"          # cac 命令
+export PATH="$HOME/.cac/bin:$PATH"     # claude wrapper
+# <<< cac — Claude Code Cloak <<<
+EOF
+    echo "  ✓ PATH 已写入 $rc_file"
+    return 0
+}
+
+_remove_path_from_rc() {
+    local rc_file="${1:-$(_detect_rc_file)}"
+    [[ -z "$rc_file" ]] && return 0
+
+    # 移除标记块格式（新格式）
+    if grep -q '# >>> cac' "$rc_file" 2>/dev/null; then
+        local tmp="${rc_file}.cac-tmp"
+        awk '/# >>> cac/{skip=1; next} /# <<< cac/{skip=0; next} !skip' "$rc_file" > "$tmp"
+        cat -s "$tmp" > "$rc_file"
+        rm -f "$tmp"
+        echo "  ✓ 已从 $rc_file 移除 PATH 配置"
+        return 0
+    fi
+
+    # 兼容旧格式
+    if grep -qE '(\.cac/bin|# cac —)' "$rc_file" 2>/dev/null; then
+        local tmp="${rc_file}.cac-tmp"
+        grep -vE '(# cac — Claude Code Cloak|\.cac/bin|# cac 命令|# claude wrapper)' "$rc_file" > "$tmp" || true
+        cat -s "$tmp" > "$rc_file"
+        rm -f "$tmp"
+        echo "  ✓ 已从 $rc_file 移除 PATH 配置（旧格式）"
+        return 0
+    fi
 }
 
 _update_statsig() {

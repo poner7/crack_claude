@@ -42,15 +42,18 @@ cmd_setup() {
     _generate_ca_cert
     echo "  ✓ mTLS CA → $CAC_DIR/ca/ca_cert.pem"
 
+    # 自动写入 PATH 到 shell rc 文件
+    local rc_file
+    rc_file=$(_detect_rc_file)
+    _write_path_to_rc "$rc_file"
+
     echo
     echo "── 下一步 ──────────────────────────────────────────────"
-    echo "1. 将以下两行加到 ~/.zshrc 最前面："
+    if [[ -n "$rc_file" ]]; then
+        echo "1. 执行以下命令使配置生效（或重开终端）："
+        echo "   source $rc_file"
+    fi
     echo
-    echo "   export PATH=\"\$HOME/bin:\$PATH\"          # cac 命令"
-    echo "   export PATH=\"$CAC_DIR/bin:\$PATH\"  # claude wrapper"
-    echo
-    echo "2. source ~/.zshrc"
-    echo
-    echo "3. 添加第一个代理环境："
+    echo "2. 添加第一个代理环境："
     echo "   cac add <名字> <host:port:user:pass>"
 }

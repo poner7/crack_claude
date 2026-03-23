@@ -5,13 +5,15 @@ cat <<EOF
 $(_bold "cac") — Claude Anti-fingerprint Cloak
 
 $(_bold "用法：")
-  cac setup                         首次安装
+  cac setup                         首次安装（自动配置 PATH）
   cac add <名字> <host:port:u:p>    添加新环境（需要 yes 确认）
   cac <名字>                        切换到指定环境
   cac ls                            列出所有环境
   cac check                         核查当前环境（代理 + 安全防护）
   cac stop                          临时停用，claude 裸跑
   cac -c                            恢复停用
+  cac delete                        卸载 cac（清除所有数据和配置）
+  cac -v                            查看版本号和安装方式
 
 $(_bold "代理格式：")
   host:port:user:pass    带认证的 SOCKS5

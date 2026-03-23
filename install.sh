@@ -4,7 +4,6 @@ set -euo pipefail
 
 REPO="https://raw.githubusercontent.com/nmhjklnm/cac/master"
 BIN_DIR="$HOME/bin"
-CAC_BIN="$HOME/.cac/bin"
 
 # 颜色
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -14,14 +13,33 @@ red() { printf '\033[31m%s\033[0m\n' "$*"; }
 echo "=== cac — Claude Code Cloak 安装 ==="
 echo
 
-# 1. 下载 cac 到 ~/bin
+# 1. 检查是否已通过 npm 安装
+if command -v cac &>/dev/null; then
+    local_cac=$(command -v cac)
+    if [[ "$local_cac" == *"node_modules"* ]] || [[ -f "$(dirname "$local_cac" 2>/dev/null)/package.json" ]]; then
+        red "⚠ 检测到已通过 npm 安装 claude-cac，请勿同时使用两种安装方式！"
+        echo "  如需切换到 bash 安装，请先执行："
+        echo "    npm uninstall -g claude-cac"
+        exit 1
+    fi
+fi
+
+# 2. 下载 cac 到 ~/bin
 mkdir -p "$BIN_DIR"
 printf "下载 cac ... "
 curl -fsSL "$REPO/cac" -o "$BIN_DIR/cac"
 chmod +x "$BIN_DIR/cac"
 green "✓"
 
-# 2. 写入 PATH（检测用哪个 rc 文件）
+# 3. 初始化（cac setup 会自动写入 PATH 到 shell rc 文件）
+export PATH="$BIN_DIR:$PATH"
+"$BIN_DIR/cac" setup
+
+echo
+green "✓ 安装完成"
+echo
+
+# 4. 提示生效方式
 RC_FILE=""
 if [[ -f "$HOME/.zshrc" ]]; then
     RC_FILE="$HOME/.zshrc"
@@ -32,35 +50,9 @@ elif [[ -f "$HOME/.bash_profile" ]]; then
 fi
 
 if [[ -n "$RC_FILE" ]]; then
-    if ! grep -q 'cac/bin' "$RC_FILE" 2>/dev/null; then
-        printf "写入 PATH 到 %s ... " "$RC_FILE"
-        cat >> "$RC_FILE" << 'EOF'
-
-# cac — Claude Code Cloak
-export PATH="$HOME/bin:$PATH"          # cac 命令
-export PATH="$HOME/.cac/bin:$PATH"     # claude wrapper（必须最前）
-EOF
-        green "✓"
-    else
-        yellow "PATH 已存在，跳过"
-    fi
-else
-    yellow "⚠ 未找到 shell 配置文件，请手动添加："
-    echo '  export PATH="$HOME/bin:$PATH"'
-    echo '  export PATH="$HOME/.cac/bin:$PATH"'
+    echo "执行以下命令使配置生效（或重开终端）："
+    echo "  source $RC_FILE"
+    echo
 fi
-
-# 3. 初始化 wrapper 和 ioreg shim
-printf "初始化 ... "
-export PATH="$BIN_DIR:$PATH"
-"$BIN_DIR/cac" setup 2>&1 | grep -E "✓|错误" || true
-green "✓"
-
-echo
-green "✓ 安装完成"
-echo
-echo "执行以下命令使配置生效："
-echo "  source $RC_FILE"
-echo
 echo "然后添加第一个代理配置："
 echo "  cac add <名字> <host:port:user:pass>"

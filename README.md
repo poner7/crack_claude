@@ -50,28 +50,39 @@ Claude Code 在运行过程中会读取并上报设备标识符（硬件 UUID、
 
 ### 安装
 
-**npm 安装（推荐）：**
+> ⚠️ **请只选择其中一种方式，切勿同时安装！**
+
+**方式 A：npm（推荐）**
 
 ```bash
 npm install -g claude-cac
-cac setup
+cac setup          # 自动配置 PATH，无需手动修改
 ```
 
-**一键脚本安装：**
+**方式 B：一键脚本**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/nmhjklnm/cac/master/install.sh | bash
 ```
 
-**手动安装：**
+安装完成后重开终端，或执行 `source ~/.zshrc`。
+
+### 卸载
 
 ```bash
-git clone https://github.com/nmhjklnm/cac.git
-cd cac
-bash install.sh
+cac delete                       # 自动清除数据 + PATH 配置
+npm uninstall -g claude-cac      # npm 用户需额外执行此步
 ```
 
-安装完成后重开终端，或执行 `source ~/.zshrc`。
+<details>
+<summary>手动卸载</summary>
+
+```bash
+rm -rf ~/.cac                    # 删除数据目录
+rm -f ~/bin/cac                  # 删除命令（bash 安装）
+# 编辑 ~/.zshrc，移除 # >>> cac ... <<< 标记块
+```
+</details>
 
 ### 使用
 
@@ -96,12 +107,14 @@ claude
 
 | 命令 | 说明 |
 |:---|:---|
+| `cac setup` | 首次安装，自动配置 PATH |
 | `cac add <名字> <host:port:u:p>` | 添加配置 |
-| `cac <名字>` | 切换配置，刷新所有隐私参数 |
+| `cac <名字>` | 切换配置 |
 | `cac ls` | 列出所有配置 |
 | `cac check` | 检查代理 + 安全防护 + 冲突检测 |
-| `cac stop` | 临时停用保护 |
-| `cac -c` | 恢复保护 |
+| `cac stop` / `cac -c` | 停用 / 恢复保护 |
+| `cac delete` | 卸载（清除数据 + PATH） |
+| `cac -v` | 版本号 + 安装方式 |
 
 ### 工作原理
 
@@ -187,28 +200,39 @@ All `claude` invocations (including Agent subprocesses) are intercepted. Zero in
 
 ### Installation
 
-**npm install (recommended):**
+> ⚠️ **Choose only ONE method. Do NOT install both!**
+
+**Option A: npm (recommended)**
 
 ```bash
 npm install -g claude-cac
-cac setup
+cac setup          # auto-configures PATH
 ```
 
-**One-line script install:**
+**Option B: One-line script**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/nmhjklnm/cac/master/install.sh | bash
 ```
 
-**Manual install:**
+Restart your terminal or run `source ~/.zshrc` after installation.
+
+### Uninstallation
 
 ```bash
-git clone https://github.com/nmhjklnm/cac.git
-cd cac
-bash install.sh
+cac delete                       # removes all data + PATH entries
+npm uninstall -g claude-cac      # npm users: also run this
 ```
 
-After installation, restart your terminal or run `source ~/.zshrc`.
+<details>
+<summary>Manual uninstall</summary>
+
+```bash
+rm -rf ~/.cac                    # remove data directory
+rm -f ~/bin/cac                  # remove command (bash install)
+# edit ~/.zshrc, remove the # >>> cac ... <<< block
+```
+</details>
 
 ### Usage
 
@@ -225,12 +249,14 @@ On first use, run `/login` inside Claude Code to authenticate.
 
 | Command | Description |
 |:---|:---|
+| `cac setup` | First-time setup, auto-configures PATH |
 | `cac add <name> <host:port:u:p>` | Add profile |
-| `cac <name>` | Switch profile, refresh all privacy parameters |
+| `cac <name>` | Switch profile |
 | `cac ls` | List all profiles |
 | `cac check` | Check proxy + security + conflict detection |
-| `cac stop` | Temporarily disable protection |
-| `cac -c` | Re-enable protection |
+| `cac stop` / `cac -c` | Disable / re-enable protection |
+| `cac delete` | Uninstall (removes data + PATH) |
+| `cac -v` | Version + installation method |
 
 ### How It Works
 

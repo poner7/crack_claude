@@ -16,6 +16,8 @@ SOURCES=(
     cmd_env.sh
     cmd_check.sh
     cmd_stop.sh
+    cmd_delete.sh
+    cmd_version.sh
     cmd_help.sh
     main.sh
 )
