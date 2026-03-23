@@ -7,12 +7,12 @@ ARG SINGBOX_VERSION=1.11.4
 ARG BUILD_PROXY
 
 # System packages + uv + sing-box
+# BUILD_PROXY: only used for curl (uv, sing-box, claude install).
+# apt-get uses direct connection (Debian mirrors don't need proxy in CI).
+# For local builds behind a SOCKS5 proxy, apt can reach mirrors via the
+# host's network; only external downloads (GitHub, astral.sh) need the proxy.
 RUN set -eux; \
     CURL="curl ${BUILD_PROXY:+-x $BUILD_PROXY}"; \
-    if [ -n "${BUILD_PROXY:-}" ]; then \
-      export http_proxy="$BUILD_PROXY" https_proxy="$BUILD_PROXY" \
-             HTTP_PROXY="$BUILD_PROXY" HTTPS_PROXY="$BUILD_PROXY" ALL_PROXY="$BUILD_PROXY"; \
-    fi; \
     apt-get update && apt-get install -y --no-install-recommends \
       build-essential ca-certificates curl git iproute2 \
       locales nftables procps python3 python3-venv \
