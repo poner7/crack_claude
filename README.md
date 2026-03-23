@@ -128,6 +128,34 @@ TUN 代理冲突时启用 relay：
     └── relay               # "on" 启用中转
 ```
 
+### Docker 容器模式
+
+完全隔离的运行环境：sing-box TUN 网络隔离 + cac 身份伪装，预装 Claude Code。
+
+```bash
+cac docker setup     # 粘贴代理地址，网络自动检测
+cac docker create    # 拉取预构建镜像
+cac docker start     # 启动容器
+cac docker enter     # 进入容器，claude + cac 直接可用
+cac docker check     # 网络 + 身份一键诊断
+cac docker port 6287 # 端口转发
+```
+
+| 命令 | 说明 |
+|:---|:---|
+| `cac docker setup` | 配置代理（交互式） |
+| `cac docker create` | 拉取 Docker 镜像 |
+| `cac docker start` / `stop` / `restart` | 容器生命周期 |
+| `cac docker enter` | 进入容器 |
+| `cac docker check` | 网络 + 身份诊断 |
+| `cac docker port <端口>` | 端口转发到 localhost |
+| `cac docker status` | 查看状态 |
+| `cac docker logs` | 查看日志 |
+
+代理格式：`ip:port:user:pass`（SOCKS5）、`ss://...`、`vmess://...`、`vless://...`、`trojan://...`
+
+容器自动完成：TUN 启动 → 时区/语言检测 → cac profile 创建并激活 → 身份伪装生效。`/root` 和 `/home` 持久化到宿主机 `docker/data/`。
+
 ### 注意事项
 
 - **首次登录**：启动 `claude` 后，在界面内输入 `/login` 完成 OAuth 授权。健康检查由 cac 自动 bypass。
@@ -251,6 +279,34 @@ When TUN-mode proxy software (Clash, Surge) causes conflicts:
     ├── client_cert.pem     # mTLS cert
     └── relay               # "on" if relay enabled
 ```
+
+### Docker Mode
+
+Fully isolated environment: sing-box TUN network isolation + cac identity protection, with Claude Code pre-installed.
+
+```bash
+cac docker setup     # paste proxy, network auto-detected
+cac docker create    # pull pre-built image
+cac docker start     # start container
+cac docker enter     # shell with claude + cac ready
+cac docker check     # network + identity diagnostics
+cac docker port 6287 # port forwarding
+```
+
+| Command | Description |
+|:---|:---|
+| `cac docker setup` | Configure proxy (interactive) |
+| `cac docker create` | Pull Docker image |
+| `cac docker start` / `stop` / `restart` | Container lifecycle |
+| `cac docker enter` | Enter container |
+| `cac docker check` | Network + identity diagnostics |
+| `cac docker port <port>` | Forward port to localhost |
+| `cac docker status` | Show status |
+| `cac docker logs` | View logs |
+
+Proxy formats: `ip:port:user:pass` (SOCKS5), `ss://...`, `vmess://...`, `vless://...`, `trojan://...`
+
+Container auto-setup: TUN start → timezone/locale detection → cac profile created and activated → identity spoofed. `/root` and `/home` persist to host `docker/data/`.
 
 ### Notes
 
