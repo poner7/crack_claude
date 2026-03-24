@@ -71,6 +71,7 @@ _env_cmd_create() {
     [[ -n "$claude_ver" ]]    && echo "$claude_ver" > "$env_dir/version"
     echo "$env_type"          > "$env_dir/type"
     mkdir -p "$env_dir/.claude"
+    echo '{}' > "$env_dir/.claude/settings.json"
 
     _generate_client_cert "$name" >/dev/null 2>&1 || true
 

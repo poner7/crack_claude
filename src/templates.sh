@@ -27,6 +27,8 @@ _env_dir="$ENVS_DIR/$_name"
 # Isolated .claude config directory
 if [[ -d "$_env_dir/.claude" ]]; then
     export CLAUDE_CONFIG_DIR="$_env_dir/.claude"
+    # 确保 settings.json 存在，阻止 Claude Code fallback 到 ~/.claude/settings.json
+    [[ -f "$_env_dir/.claude/settings.json" ]] || echo '{}' > "$_env_dir/.claude/settings.json"
 fi
 
 # Proxy — optional: only if proxy file exists and is non-empty
