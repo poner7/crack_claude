@@ -1,71 +1,75 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Build
-
-The `cac` binary in the repo root is the built artifact — a single concatenated shell script. **Never edit `cac` directly.**
+## Build & Release
 
 ```bash
-# Rebuild after editing src/
-bash build.sh
+bash build.sh          # src/*.sh → single `cac` file (never edit cac directly)
 ```
 
-`build.sh` concatenates `src/*.sh` files in a fixed order into the single `cac` file, stripping shebangs and prepending the global header. It also copies `fingerprint-hook.js` and `relay.js` to the repo root.
+Release flow:
+1. Bump `CAC_VERSION` in `src/utils.sh`
+2. `bash build.sh`
+3. Commit & push to master
+4. `git tag v1.2.0 && git push origin v1.2.0`
+5. CI auto-syncs version to `package.json` + `src/utils.sh`, runs `build.sh`, then `npm publish`
 
-## Architecture
+## Source Files
 
-This is a pure Bash project with Node.js runtime components. The `src/` directory is the source of truth:
+Build order matters (concatenated into single file):
 
-| File | Role |
-|---|---|
-| `src/utils.sh` | Shared helpers: color output, UUID/MAC/hostname generators, proxy parsing, `_auto_detect_proxy`, `_update_statsig`, `_update_claude_json_user_id` |
-| `src/dns_block.sh` | Writes `cac-dns-guard.js` (DNS/fetch telemetry interception, health check bypass via NO_PROXY) and `blocked_hosts` |
-| `src/mtls.sh` | mTLS CA + client cert generation, health bypass cert (`hb_cert.pem` for api.anthropic.com) |
-| `src/templates.sh` | Writes runtime files to `~/.cac/`: the claude wrapper (`_write_wrapper`) and all shim scripts (`ioreg`, `cat`, `hostname`, `ifconfig`) |
-| `src/fingerprint-hook.js` | Node.js preload hook: monkey-patches `os.hostname()`, `os.networkInterfaces()`, `os.userInfo()`, `fs.readFileSync/readFile` |
-| `src/relay.js` | TCP relay server: local HTTP proxy that forwards to upstream HTTP/SOCKS5 proxy (bypass TUN) |
-| `src/cmd_setup.sh` | `cac setup` — detects real claude, writes wrapper + shims, deploys JS files and certs |
-| `src/cmd_env.sh` | `cac add / switch / ls` — creates/activates profiles under `~/.cac/envs/<name>/` |
-| `src/cmd_relay.sh` | `cac relay on/off/status` — relay lifecycle, route management, TUN detection |
-| `src/cmd_check.sh` | `cac check` — verifies proxy, security protections, relay status, TUN conflicts |
-| `src/cmd_stop.sh` | `cac stop / -c` — toggles `~/.cac/stopped` flag |
-| `src/cmd_help.sh` | `cac help` output |
-| `src/main.sh` | Entry point: argument dispatch (`case "$1"`) |
+```
+utils.sh → dns_block.sh → mtls.sh → templates.sh → cmd_setup.sh → cmd_env.sh →
+cmd_relay.sh → cmd_check.sh → cmd_stop.sh → cmd_claude.sh → cmd_self.sh →
+cmd_docker.sh → cmd_delete.sh → cmd_version.sh → cmd_help.sh → main.sh
+```
 
-Build order: utils → dns_block → mtls → templates → cmd_setup → cmd_env → cmd_relay → cmd_check → cmd_stop → cmd_help → main
+Key files:
+- `cmd_claude.sh` — `cac claude install/ls/pin/uninstall` (version management)
+- `cmd_env.sh` — `cac env create/ls/rm/activate/deactivate` (environment management)
+- `cmd_self.sh` — `cac self update/delete`
+- `templates.sh` — wrapper (`~/.cac/bin/claude`) + shim scripts
+- `dns_block.sh` — `cac-dns-guard.js`: DNS telemetry blocking + health check bypass + mTLS injection
+- `utils.sh` — `CAC_VERSION`, color helpers, UUID generators, version resolvers
 
-## Key Design Points
+## Command Structure
 
-**Wrapper mechanism**: `cac setup` writes `~/.cac/bin/claude` which takes priority in PATH over the real `claude` binary. The wrapper:
-1. Pre-flight TCP check (proxy reachable?)
-2. Injects proxy env vars (`HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`)
-3. Starts health check bypass server (local HTTPS on port 443 + `/etc/hosts` + `NO_PROXY`)
-4. Prepends `~/.cac/shim-bin` to PATH
-5. Sets `NODE_OPTIONS --require` for fingerprint-hook.js and cac-dns-guard.js
-6. Sets 12-layer telemetry kill env vars
-7. Optionally starts relay (if enabled)
-8. Launches real claude binary
+```
+cac claude   install | ls | pin | uninstall      # version management
+cac env      create | ls | rm | activate |       # environment management
+             deactivate | check
+cac self     update | delete                     # self-management
+cac docker   setup | start | enter | ...         # containerized mode
+cac <name>                                       # shortcut for env activate
+```
 
-**Health check bypass**: Claude Code's interactive startup pings `api.anthropic.com/api/hello`. Through a proxy, Cloudflare returns 403 (Node.js TLS fingerprint rejected). The wrapper starts a local HTTPS server with a cert signed by cac's CA (trusted via `NODE_EXTRA_CA_CERTS`), adds `api.anthropic.com` to `/etc/hosts` pointing to `127.0.0.1`, and adds it to `NO_PROXY` via dns-guard.js. Health check goes to local server → instant 200. After 3 seconds, `NO_PROXY` is restored so API calls go through the real proxy.
+## Key Design
 
-**Shim commands**: Platform-specific shims intercept identity-revealing commands:
-- macOS: `ioreg` shim returns fake `IOPlatformUUID`
-- Linux: `cat` shim intercepts `/etc/machine-id` and `/var/lib/dbus/machine-id`
-- Both: `hostname` and `ifconfig` shims
+**Proxy is optional.** `-p` flag on `env create`. Without it: fingerprint isolation + telemetry blocking only. `ANTHROPIC_API_KEY`/`ANTHROPIC_BASE_URL` preserved when no proxy; cleared when proxy is set (force OAuth).
 
-**Node.js fingerprint hook**: Injected via `NODE_OPTIONS --require`, monkey-patches `os.hostname()`, `os.networkInterfaces()`, `os.userInfo()`, and `fs.readFileSync/readFile` for `/etc/machine-id`. On Windows, also patches `child_process.execSync/exec/execFileSync` for `wmic`/`reg` commands.
+**CLAUDE_CONFIG_DIR** — each env gets `~/.cac/envs/<name>/.claude/`, set via wrapper. Claude Code writes all config (`.credentials.json`, sessions, settings) there.
 
-**Relay**: Local TCP proxy (`relay.js`) on `127.0.0.1` that forwards to upstream HTTP/SOCKS5 proxy. Bypasses TUN-mode proxy software (Clash, Surge) since loopback traffic isn't intercepted by TUN. Managed via `cac relay on/off`.
+**Health check bypass** — Cloudflare blocks Node.js TLS fingerprint (JA3/JA4) → 403 on `api.anthropic.com/api/hello`. Bypassed in `dns-guard.js` by intercepting `https.request`/`fetch` for that URL and returning fake 200 in-process. No network traffic, no `/etc/hosts`, no root needed.
 
-**Profile data** lives in `~/.cac/envs/<name>/` — plain text files (one value per file): `proxy`, `uuid`, `machine_id`, `hostname`, `mac_address`, `stable_id`, `user_id`, `tz`, `lang`, `relay`.
+**Auto-relay** — TUN interfaces auto-detected (`tun*`/`utun*`). When proxy + TUN both present, relay starts automatically (loopback bypasses TUN).
 
-**Global state files**: `~/.cac/current` (active profile name), `~/.cac/stopped` (presence = protection disabled), `~/.cac/real_claude` (path to real binary).
+**Auto-bootstrap** — `_ensure_initialized` runs silently on first command. No manual `cac setup` needed.
 
-## Runtime Dependencies
+## Runtime Data
 
-- `bash`, `uuidgen`, `python3`, `curl`, `openssl` — required on target system
-- `node` — required (Claude Code itself is Node.js)
-- `ioreg` — macOS only (intercepted by shim)
-- Root access — needed for health check bypass (`/etc/hosts` + port 443)
-- PATH ordering is critical: `~/.cac/bin` must precede the real `claude`; `~/.cac/shim-bin` is prepended inside the wrapper at runtime only
+```
+~/.cac/
+├── versions/<ver>/claude    # managed binaries
+├── bin/claude               # wrapper (must be first in PATH)
+├── shim-bin/                # ioreg/hostname/ifconfig/cat shims
+├── envs/<name>/
+│   ├── .claude/             # CLAUDE_CONFIG_DIR (isolated)
+│   ├── proxy                # optional
+│   ├── version              # pinned claude version
+│   └── uuid, hostname, mac_address, machine_id, stable_id
+├── current                  # active env name
+└── real_claude              # path to system claude binary
+```
+
+## Docs
+
+Mintlify site at `docs/`, deployed to `cac.nextmind.space/docs`. Bilingual (EN + ZH under `docs/zh/`). Config in `docs/docs.json`.
