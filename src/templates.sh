@@ -421,15 +421,20 @@ fi
 # ── Concurrent session check ──
 _max_sessions=10
 [[ -f "$CAC_DIR/max_sessions" ]] && _ms=$(tr -d '[:space:]' < "$CAC_DIR/max_sessions") && [[ -n "$_ms" ]] && _max_sessions="$_ms"
-_claude_count=$(pgrep -x "claude" 2>/dev/null | wc -l | tr -d '[:space:]')
+# pgrep exits 1 when no match; with pipefail + set -e that would abort the wrapper
+_claude_count=$(pgrep -x "claude" 2>/dev/null | wc -l | tr -d '[:space:]') || _claude_count=0
 if [[ "$_claude_count" -gt "$_max_sessions" ]]; then
     echo "[cac] warning: $_claude_count claude sessions running (threshold: $_max_sessions)" >&2
     echo "[cac] hint: concurrent sessions on the same device may trigger detection" >&2
     echo "[cac] hint: adjust threshold with: echo '{\"max_sessions\": 20}' > ~/.cac/settings.json" >&2
 fi
 
+# claude non-zero exit must not leave _ec unset (set -u) or abort before cleanup (set -e)
+_ec=0
+set +e
 "$_real" "$@"
 _ec=$?
+set -e
 _cleanup_all
 exit "$_ec"
 WRAPPER_EOF
