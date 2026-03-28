@@ -12,3 +12,4 @@ node_modules/
 # docker
 docker/.env
 data/
+CLAUDE.local.md
