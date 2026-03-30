@@ -88,22 +88,74 @@ cmd_check() {
         fi
     fi
 
-    # ── fingerprint hook runtime verification ──
+    # ── identity spoofing (consolidated) ──
+    local os; os=$(_detect_os)
+    local _id_ok=0 _id_total=0 _id_issues=()
+
+    # fingerprint hook
+    local _fp_ok=false
     if [[ -f "$CAC_DIR/fingerprint-hook.js" ]] && [[ -f "$env_dir/hostname" ]]; then
         local expected_hn; expected_hn=$(_read "$env_dir/hostname")
         local actual_hn
         actual_hn=$(NODE_OPTIONS="--require $CAC_DIR/fingerprint-hook.js" CAC_HOSTNAME="$expected_hn" \
             node -e "process.stdout.write(require('os').hostname())" 2>/dev/null || true)
+        (( _id_total++ )) || true
         if [[ "$actual_hn" == "$expected_hn" ]]; then
-            echo "    $(_green "✓") fingerprint spoofed ($(_dim "$expected_hn"))"
+            _fp_ok=true; (( _id_ok++ )) || true
         else
-            echo "    $(_red "✗") fingerprint NOT spoofed (got: $actual_hn)"
-            problems+=("fingerprint hook not working")
+            _id_issues+=("fingerprint hook not working")
         fi
+    fi
+    # git email
+    (( _id_total++ )) || true
+    if [[ -f "$env_dir/git_email" ]]; then
+        (( _id_ok++ )) || true
+    else
+        _id_issues+=("git email not spoofed")
+    fi
+    # repo hash
+    (( _id_total++ )) || true
+    if [[ -f "$env_dir/fake_git_remote" ]]; then
+        (( _id_ok++ )) || true
+    else
+        _id_issues+=("repo hash not spoofed")
+    fi
+    # user_id consistency
+    local _uid_ok=true
+    local _env_uid; _env_uid=$(_read "$env_dir/user_id" "")
+    if [[ -n "$_env_uid" ]]; then
+        local _config_dir="${CLAUDE_CONFIG_DIR:-$ENVS_DIR/$current/.claude}"
+        local _cj="$_config_dir/.claude.json"
+        [[ -f "$_cj" ]] || _cj="$HOME/.claude.json"
+        if [[ -f "$_cj" ]]; then
+            local _actual_uid
+            _actual_uid=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('userID',''))" "$_cj" 2>/dev/null || true)
+            (( _id_total++ )) || true
+            if [[ -n "$_actual_uid" ]] && [[ "$_actual_uid" != "$_env_uid" ]]; then
+                _uid_ok=false
+                _id_issues+=("user_id mismatch")
+            else
+                (( _id_ok++ )) || true
+            fi
+        fi
+    fi
+    # billing header
+    (( _id_total++ )) || true
+    [[ "$wrapper_content" == *"CLAUDE_CODE_ATTRIBUTION_HEADER"* ]] && { (( _id_ok++ )) || true; } || _id_issues+=("billing header exposed")
+
+    # display consolidated identity line
+    local _id_extra=""
+    [[ -f "$env_dir/persona" ]] && _id_extra=" + $(_read "$env_dir/persona")"
+    if [[ "$_id_ok" -eq "$_id_total" ]]; then
+        echo "    $(_green "✓") identity   ${_id_ok}/${_id_total} spoofed${_id_extra}"
+    else
+        echo "    $(_red "✗") identity   ${_id_ok}/${_id_total} spoofed${_id_extra}"
+        for _ii in "${_id_issues[@]}"; do
+            problems+=("$_ii")
+        done
     fi
 
     # ── IPv6 leak detection ──
-    local os; os=$(_detect_os)
     local ipv6_leak=false
     if [[ "$os" == "macos" ]]; then
         local ipv6_addrs
@@ -115,80 +167,28 @@ cmd_check() {
         [[ "$ipv6_addrs" -gt 0 ]] && ipv6_leak=true
     fi
     if [[ "$ipv6_leak" == "true" ]]; then
-        echo "    $(_yellow "⚠") IPv6      global address detected (potential leak)"
+        echo "    $(_yellow "⚠") IPv6       global address detected (potential leak)"
     else
-        echo "    $(_green "✓") IPv6      no global address"
+        echo "    $(_green "✓") IPv6       no global address"
     fi
 
-    # ── residual telemetry files ──
+    # ── warnings (only shown when relevant) ──
     if [[ -d "$HOME/.claude/telemetry" ]]; then
         local tel_files
         tel_files=$(find "$HOME/.claude/telemetry" -type f 2>/dev/null | wc -l | tr -d ' ')
         if [[ "$tel_files" -gt 0 ]]; then
-            echo "    $(_yellow "⚠") residual  $tel_files telemetry files in ~/.claude/telemetry/"
-            echo "              $(_dim "hint: rm -rf ~/.claude/telemetry/")"
+            echo "    $(_yellow "⚠") residual   $tel_files telemetry files in ~/.claude/telemetry/"
         fi
     fi
-
-    # ── concurrent sessions ──
     local _claude_count
     _claude_count=$(pgrep -x "claude" 2>/dev/null | wc -l | tr -d '[:space:]') || _claude_count=0
     local _max_sessions; _max_sessions=$(_cac_setting max_sessions 10)
     if [[ "$_claude_count" -gt "$_max_sessions" ]]; then
-        echo "    $(_yellow "⚠") sessions  $_claude_count running (threshold: $_max_sessions)"
+        echo "    $(_yellow "⚠") sessions   $_claude_count running (threshold: $_max_sessions)"
     fi
-
-    # ── metadata.user_id consistency ──
-    local _env_uid; _env_uid=$(_read "$env_dir/user_id" "")
-    if [[ -n "$_env_uid" ]]; then
-        local _config_dir="${CLAUDE_CONFIG_DIR:-$ENVS_DIR/$current/.claude}"
-        local _cj="$_config_dir/.claude.json"
-        [[ -f "$_cj" ]] || _cj="$HOME/.claude.json"
-        if [[ -f "$_cj" ]]; then
-            local _actual_uid
-            _actual_uid=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('userID',''))" "$_cj" 2>/dev/null || true)
-            if [[ -n "$_actual_uid" ]] && [[ "$_actual_uid" != "$_env_uid" ]]; then
-                echo "    $(_yellow "⚠") user_id   mismatch — Claude may have overwritten it"
-                echo "              $(_dim "env: ${_env_uid:0:16}... json: ${_actual_uid:0:16}...")"
-                problems+=("user_id mismatch between env file and .claude.json")
-            else
-                echo "    $(_green "✓") user_id   consistent"
-            fi
-        fi
-    fi
-
-    # ── git email spoofing ──
-    if [[ -f "$env_dir/git_email" ]]; then
-        echo "    $(_green "✓") git email  spoofed ($(_dim "$(_read "$env_dir/git_email")"))"
-    else
-        echo "    $(_yellow "⚠") git email  not spoofed (real email exposed)"
-    fi
-
-    # ── repository fingerprint (rh) ──
-    if [[ -f "$env_dir/fake_git_remote" ]]; then
-        echo "    $(_green "✓") repo hash  spoofed"
-    else
-        echo "    $(_yellow "⚠") repo hash  not spoofed (rh links activity across accounts)"
-    fi
-
-    # ── billing header ──
-    if [[ "$wrapper_content" == *"CLAUDE_CODE_ATTRIBUTION_HEADER"* ]]; then
-        echo "    $(_green "✓") billing    header disabled"
-    fi
-
-    # ── Keychain residual (macOS) ──
     if [[ "$os" == "macos" ]]; then
-        local _kc_found=false
-        security find-generic-password -s "claude-code-credentials" >/dev/null 2>&1 && _kc_found=true
-        if [[ "$_kc_found" == "true" ]]; then
-            echo "    $(_yellow "⚠") keychain   Trusted Device Token found in macOS Keychain"
-            echo "              $(_dim "hint: security delete-generic-password -s 'claude-code-credentials'")"
-        fi
-    fi
-
-    # ── persona ──
-    if [[ -f "$env_dir/persona" ]]; then
-        echo "    $(_green "✓") persona    $(_dim "$(_read "$env_dir/persona")")"
+        security find-generic-password -s "claude-code-credentials" >/dev/null 2>&1 && \
+            echo "    $(_yellow "⚠") keychain   Trusted Device Token residual"
     fi
 
     # ── network check (slow — streaming output) ──
@@ -288,13 +288,19 @@ cmd_check() {
 
     # ── verbose mode ──
     if [[ "$verbose" == "true" ]]; then
+        echo "  $(_bold "Identity")"
+        echo "    $([[ "$_fp_ok" == "true" ]] && _green "✓" || _red "✗") hostname    $(_read "$env_dir/hostname" "—")"
+        echo "    $([[ -f "$env_dir/git_email" ]] && _green "✓" || _yellow "⚠") git email   $(_read "$env_dir/git_email" "—")"
+        echo "    $([[ -f "$env_dir/fake_git_remote" ]] && _green "✓" || _yellow "⚠") repo hash   $(_read "$env_dir/fake_git_remote" "—")"
+        echo "    $([[ "$_uid_ok" == "true" ]] && _green "✓" || _yellow "⚠") user_id     $(_read "$env_dir/user_id" "—" | cut -c1-16)..."
+        echo "    $([[ "$wrapper_content" == *"CLAUDE_CODE_ATTRIBUTION_HEADER"* ]] && _green "✓" || _yellow "⚠") billing     $([[ "$wrapper_content" == *"CLAUDE_CODE_ATTRIBUTION_HEADER"* ]] && echo "disabled" || echo "exposed")"
+        [[ -f "$env_dir/persona" ]] && echo "    $(_green "✓") persona     $(_read "$env_dir/persona")"
+        echo
         echo "  $(_bold "Details")"
         echo "    $(_dim "UUID")       $(_read "$env_dir/uuid")"
         echo "    $(_dim "stable_id")  $(_read "$env_dir/stable_id")"
-        echo "    $(_dim "user_id")    $(_read "$env_dir/user_id" "—")"
-        echo "    $(_dim "git_email")  $(_read "$env_dir/git_email" "—")"
-        echo "    $(_dim "rh_remote")  $(_read "$env_dir/fake_git_remote" "—")"
-        echo "    $(_dim "persona")    $(_read "$env_dir/persona" "—")"
+        echo "    $(_dim "MAC")        $(_read "$env_dir/mac_address" "—")"
+        echo "    $(_dim "machine_id") $(_read "$env_dir/machine_id" "—")"
         echo "    $(_dim "TZ")         $(_read "$env_dir/tz" "—")"
         echo "    $(_dim "LANG")       $(_read "$env_dir/lang" "—")"
         echo "    $(_dim "env")        ${env_dir/#$HOME/~}/.claude/"
