@@ -408,6 +408,13 @@ _env_cmd_set() {
     esac
 }
 
+_env_cmd_stop() {
+    _relay_stop 2>/dev/null || true
+    touch "$CAC_DIR/stopped"
+    echo "  $(_green "✓") cac paused — claude will run without any cac injection"
+    echo "  $(_dim "resume with:") $(_green "cac <name>")"
+}
+
 cmd_env() {
     case "${1:-help}" in
         create)       _env_cmd_create "${@:2}" ;;
@@ -415,6 +422,7 @@ cmd_env() {
         ls|list)      _env_cmd_ls ;;
         rm|remove)    _env_cmd_rm "${@:2}" ;;
         activate)     _env_cmd_activate "${@:2}" ;;
+        stop)         _env_cmd_stop ;;
         check)        cmd_check "${@:2}" ;;
         deactivate)   echo "$(_yellow "warning:") deactivate has been removed — switch with 'cac <name>' or uninstall with 'cac self delete'" >&2 ;;
         help|-h|--help)
@@ -428,7 +436,8 @@ cmd_env() {
             echo "    $(_green "ls")              List all environments"
             echo "    $(_green "rm") <name>       Remove an environment"
             echo "    $(_green "check")           Verify current environment"
-            echo "    $(_green "cac") <name>      Switch environment"
+            echo "    $(_green "stop")            Pause cac (claude runs natively, no injection)"
+            echo "    $(_green "cac") <name>      Switch environment (also resumes if stopped)"
             echo
             ;;
         *)

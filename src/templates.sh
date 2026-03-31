@@ -466,10 +466,15 @@ if [[ -n "$PROXY" ]] && [[ -f "$CAC_DIR/relay.js" ]]; then
                 sleep 5
                 # relay.proxy removed by _relay_stop — intentional stop, exit watchdog
                 [[ -f "$CAC_DIR/relay.proxy" ]] || exit 0
-                # relay alive — nothing to do
+                # relay alive and port reachable — nothing to do
                 if [[ -f "$CAC_DIR/relay.pid" ]]; then
                     _rpid=$(tr -d '[:space:]' < "$CAC_DIR/relay.pid")
-                    kill -0 "$_rpid" 2>/dev/null && continue
+                    if kill -0 "$_rpid" 2>/dev/null; then
+                        _rport=$(tr -d '[:space:]' < "$CAC_DIR/relay.port" 2>/dev/null || true)
+                        (echo >/dev/tcp/127.0.0.1/"$_rport") 2>/dev/null && continue
+                        # process alive but port unresponsive — kill and restart
+                        kill "$_rpid" 2>/dev/null || true
+                    fi
                 fi
                 # relay dead — restart on same port with same proxy
                 _rport=$(tr -d '[:space:]' < "$CAC_DIR/relay.port" 2>/dev/null || true)
