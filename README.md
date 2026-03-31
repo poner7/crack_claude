@@ -41,6 +41,18 @@
 - **配置继承** — `--clone` 从宿主或其他环境继承配置，`~/.cac/settings.json` 全局偏好
 - **零配置** — 无需 setup，首次使用自动初始化
 
+### 注意事项
+
+> **封号风险说明**：cac 提供设备指纹层保护（UUID、主机名、MAC、遥测阻断、配置隔离），但**无法影响账号层风险**——包括 OAuth 账号本身、支付方式指纹、IP 信誉评分，以及 Anthropic 的服务端封禁决策。封号是账号层问题，cac 对此无能为力。详见 [封号风险 FAQ](https://cac.nextmind.space/docs/zh/guides/ban-risk)。
+
+> **代理工具冲突**：如果本地启动了 Clash、Shadowrocket、Surge、sing-box 等代理/VPN 工具，建议在使用 cac 时先关闭。TUN 模式兼容性仍属实验性功能。即使发生冲突，cac 也会自动停止连接（fail-closed），**不会泄露你的真实 IP**。
+
+- **首次登录**：启动 `claude` 后，输入 `/login` 完成 OAuth 授权
+- **安全验证**：随时运行 `cac env check` 确认隐私保护状态，也可以 `which claude` 确认使用的是 cac 托管的 claude
+- **自动安全检查**：每次启动 Claude Code 会话时，cac 会快速检查环境。如有异常会终止会话，不会发送任何数据
+- **网络稳定性**：流量严格走代理——代理断开时流量完全停止，不会回退直连。内置心跳检测和自动恢复，断线后无需手动重启
+- **IPv6**：建议系统级关闭，防止真实地址泄露
+
 ### 安装
 
 ```bash
@@ -196,18 +208,6 @@ cac docker port 6287 # 端口转发
 
 代理格式：`ip:port:user:pass`（SOCKS5）、`ss://...`、`vmess://...`、`vless://...`、`trojan://...`
 
-### 注意事项
-
-> **封号风险说明**：cac 提供设备指纹层保护（UUID、主机名、MAC、遥测阻断、配置隔离），但**无法影响账号层风险**——包括 OAuth 账号本身、支付方式指纹、IP 信誉评分，以及 Anthropic 的服务端封禁决策。封号是账号层问题，cac 对此无能为力。详见 [封号风险 FAQ](https://cac.nextmind.space/docs/zh/guides/ban-risk)。
-
-> **代理工具冲突**：如果本地启动了 Clash、Shadowrocket、Surge、sing-box 等代理/VPN 工具，建议在使用 cac 时先关闭。TUN 模式兼容性仍属实验性功能。即使发生冲突，cac 也会自动停止连接（fail-closed），**不会泄露你的真实 IP**。
-
-- **首次登录**：启动 `claude` 后，输入 `/login` 完成 OAuth 授权
-- **安全验证**：随时运行 `cac env check` 确认隐私保护状态，也可以 `which claude` 确认使用的是 cac 托管的 claude
-- **自动安全检查**：每次启动 Claude Code 会话时，cac 会快速检查环境。如有异常会终止会话，不会发送任何数据
-- **网络稳定性**：流量严格走代理——代理断开时流量完全停止，不会回退直连。内置心跳检测和自动恢复，断线后无需手动重启
-- **IPv6**：建议系统级关闭，防止真实地址泄露
-
 ---
 
 <a id="english"></a>
@@ -225,6 +225,18 @@ cac docker port 6287 # 端口转发
 - **Privacy protection** — device fingerprint spoofing + telemetry modes (`conservative`/`aggressive`) + mTLS
 - **Config inheritance** — `--clone` inherits config from host or other envs, `~/.cac/settings.json` for global preferences
 - **Zero config** — no setup needed, auto-initializes on first use
+
+### Notes
+
+> **Account ban notice**: cac provides device fingerprint layer protection (UUID, hostname, MAC, telemetry blocking, config isolation), but **cannot affect account-layer risks** — including your OAuth account, payment method fingerprint, IP reputation score, or Anthropic's server-side ban decisions. Account bans are an account-layer issue that cac does not address. See the [Ban Risk FAQ](https://cac.nextmind.space/docs/guides/ban-risk) for details.
+
+> **Proxy tool conflicts**: If you have Clash, Shadowrocket, Surge, sing-box or other proxy/VPN tools running locally, turn them off before using cac. TUN-mode compatibility is still experimental. Even if a conflict occurs, cac will fail-closed — **your real IP is never exposed**.
+
+- **First login**: Run `claude`, then type `/login`. Health check is automatically bypassed.
+- **Verify your setup**: Run `cac env check` anytime. Use `which claude` to confirm you're using the cac-managed wrapper.
+- **Automatic safety checks**: Every new Claude Code session runs a quick cac check. If anything is wrong, the session is terminated before any data is sent.
+- **Network resilience**: Traffic is strictly routed through your proxy. If the proxy drops, traffic stops entirely — no fallback to direct connection. Built-in heartbeat detection and auto-recovery — no manual restart needed after disconnections.
+- **IPv6**: Recommend disabling system-wide to prevent real address exposure.
 
 ### Install
 
@@ -372,18 +384,6 @@ cac docker port 6287 # port forwarding
 ```
 
 Proxy formats: `ip:port:user:pass` (SOCKS5), `ss://...`, `vmess://...`, `vless://...`, `trojan://...`
-
-### Notes
-
-> **Account ban notice**: cac provides device fingerprint layer protection (UUID, hostname, MAC, telemetry blocking, config isolation), but **cannot affect account-layer risks** — including your OAuth account, payment method fingerprint, IP reputation score, or Anthropic's server-side ban decisions. Account bans are an account-layer issue that cac does not address. See the [Ban Risk FAQ](https://cac.nextmind.space/docs/guides/ban-risk) for details.
-
-> **Proxy tool conflicts**: If you have Clash, Shadowrocket, Surge, sing-box or other proxy/VPN tools running locally, turn them off before using cac. TUN-mode compatibility is still experimental. Even if a conflict occurs, cac will fail-closed — **your real IP is never exposed**.
-
-- **First login**: Run `claude`, then type `/login`. Health check is automatically bypassed.
-- **Verify your setup**: Run `cac env check` anytime. Use `which claude` to confirm you're using the cac-managed wrapper.
-- **Automatic safety checks**: Every new Claude Code session runs a quick cac check. If anything is wrong, the session is terminated before any data is sent.
-- **Network resilience**: Traffic is strictly routed through your proxy. If the proxy drops, traffic stops entirely — no fallback to direct connection. Built-in heartbeat detection and auto-recovery — no manual restart needed after disconnections.
-- **IPv6**: Recommend disabling system-wide to prevent real address exposure.
 
 ---
 
