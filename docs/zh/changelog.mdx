@@ -5,6 +5,27 @@ description: 版本发布历史和重要变更
 
 所有重要变更记录在此，每个条目关联对应的 PR 或 Issue。
 
+## v1.5.5-beta.1
+<sub>2026-04-22</sub>
+
+**修复：兼容旧版 SOCKS5 代理 URI 写法**
+
+部分环境里已经保存了旧格式的 SOCKS5 代理：`socks5://host:port:user:pass`。启动前的 pre-flight 会把最后一段误当成 TCP 端口，导致明明可连的代理在 `cac <env>` 启动前就被误报为 `unreachable`。
+
+- 将带协议前缀的旧代理串自动规范化为标准格式 `socks5://user:pass@host:port`。
+- 启动 pre-flight、`cac env check`、relay 启动和环境列表统一复用同一套规范化逻辑，避免历史环境表现不一致。
+
+**修复：`cac env check` 在无法验证出口 IP 时误报成功**
+
+当环境配置了代理，但所有出口 IP 探测都失败时，`cac env check` 之前仍会显示绿色 `exit IP` 行，最终甚至可能给出 `all good`，把真实故障伪装成重试提示。
+
+- 当所有探测端点都失败时，出口 IP 现在显示为 `✗ exit IP unable to verify via proxy`。
+- 这类失败会写入问题汇总，因此“已配置代理但无法验证出口 IP”不再被判定为健康状态。
+
+**CI**
+
+- `build-check` 现在会校验 `package.json`、`src/utils.sh` 和提交的 `cac` 三处版本号是否一致，不一致直接失败。
+
 ## v1.5.4
 <sub>2026-04-02</sub>
 

@@ -5,6 +5,27 @@ description: Release history and notable changes
 
 All notable changes to this project are documented here. Each entry links to the corresponding PR or issue.
 
+## v1.5.5-beta.1
+<sub>2026-04-22</sub>
+
+**Fix: legacy SOCKS5 proxy URI compatibility**
+
+Some environments already stored SOCKS5 proxies in the legacy form `socks5://host:port:user:pass`. Startup pre-flight treated the last field as the TCP port, so `cac <env>` could reject a reachable proxy as "unreachable" before Claude even launched.
+
+- Normalize legacy protocol-prefixed proxy strings to the standard form `socks5://user:pass@host:port`.
+- Reuse the same normalization for startup pre-flight, `cac env check`, relay startup, and environment listing so old saved environments behave consistently.
+
+**Fix: `cac env check` false positive when exit IP cannot be verified**
+
+When a proxy was configured but every exit-IP probe failed, `cac env check` still printed a green `exit IP` line and could end with `all good`, hiding a broken proxy path behind a retry hint.
+
+- Exit IP detection now reports `✗ exit IP unable to verify via proxy` when all probe endpoints fail.
+- Failed exit-IP verification is added to the problem summary, so a configured-but-unverified proxy can no longer pass as healthy.
+
+**CI**
+
+- `build-check` now fails if `package.json`, `src/utils.sh`, and committed `cac` disagree on the release version.
+
 ## v1.5.4
 <sub>2026-04-02</sub>
 

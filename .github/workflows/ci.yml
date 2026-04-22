@@ -33,6 +33,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check version metadata sync
+        run: |
+          PKG_VERSION=$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')
+          SRC_VERSION=$(grep -E '^CAC_VERSION=' src/utils.sh | cut -d'"' -f2)
+          BUILT_VERSION=$(grep -E '^CAC_VERSION=' cac | cut -d'"' -f2)
+          if [[ "$PKG_VERSION" != "$SRC_VERSION" || "$PKG_VERSION" != "$BUILT_VERSION" ]]; then
+            echo "::error::Version mismatch: package.json=$PKG_VERSION src/utils.sh=$SRC_VERSION cac=$BUILT_VERSION"
+            exit 1
+          fi
+          echo "✓ Version metadata synced at $PKG_VERSION"
+
       - name: Rebuild and check for drift
         run: |
           cp cac cac.before

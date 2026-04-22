@@ -204,14 +204,14 @@ fi
 # Proxy — optional: only if proxy file exists and is non-empty
 PROXY=""
 if [[ -f "$_env_dir/proxy" ]]; then
-    PROXY=$(tr -d '[:space:]' < "$_env_dir/proxy")
+    PROXY=$(_parse_proxy "$(tr -d '[:space:]' < "$_env_dir/proxy")")
 fi
 
 if [[ -n "$PROXY" ]]; then
     # pre-flight: proxy connectivity (pure bash, no fork)
-    _hp="${PROXY##*@}"; _hp="${_hp##*://}"
+    _hp=$(_proxy_host_port "$PROXY")
     _host="${_hp%%:*}"
-    _port="${_hp##*:}"
+    _port=$(echo "$_hp" | cut -d: -f2)
     if ! (echo >/dev/tcp/"$_host"/"$_port") 2>/dev/null; then
         echo "[cac] error: [$_name] proxy $_hp unreachable, refusing to start." >&2
         echo "[cac] hint: run 'cac check' to diagnose, or 'cac stop' to disable temporarily" >&2

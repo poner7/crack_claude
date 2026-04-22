@@ -14,6 +14,8 @@ echo "  cac PR#4 Test Suite (Docker)"
 echo "========================================="
 echo
 
+EXPECTED_VERSION=$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')
+
 # --- 准备：创建 mock claude ---
 mkdir -p /usr/local/bin
 cat > /usr/local/bin/claude << 'MOCK'
@@ -82,8 +84,8 @@ echo
 echo "--- Test 3: cac -v ---"
 version_output=$(cac -v 2>&1)
 
-if echo "$version_output" | grep -q 'cac.*1\.0\.0'; then
-    _pass "cac -v 显示版本号 1.0.0"
+if echo "$version_output" | grep -Eq "cac.*${EXPECTED_VERSION//./\\.}"; then
+    _pass "cac -v 显示版本号 $EXPECTED_VERSION"
 else
     _fail "cac -v 版本号" "输出: $version_output"
 fi

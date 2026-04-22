@@ -11,7 +11,7 @@ VERSIONS_DIR="$CAC_DIR/versions"
 # ── utils: colors, read/write, UUID, proxy parsing ───────────────────────
 
 # shellcheck disable=SC2034  # used in build-concatenated cac script
-CAC_VERSION="1.5.4"
+CAC_VERSION="1.5.5-beta.1"
 
 _read()   { [[ -f "$1" ]] && tr -d '[:space:]' < "$1" || echo "${2:-}"; }
 _die()    { printf '%b\n' "$(_red "error:") $*" >&2; exit 1; }
@@ -86,11 +86,30 @@ _get_real_cmd() {
 }
 
 # host:port:user:pass → http://user:pass@host:port
-# or pass a full URL directly (http://, https://, socks5://)
+# socks5://host:port:user:pass → socks5://user:pass@host:port
+# or pass a standard URL directly (http://, https://, socks5://)
 _parse_proxy() {
     local raw="$1"
-    # Already a full URL, return as-is
+    local proto rest
+
+    [[ -n "$raw" ]] || return 0
+
+    # Normalize protocol-prefixed legacy form:
+    #   socks5://host:port:user:pass -> socks5://user:pass@host:port
     if [[ "$raw" =~ ^(http|https|socks5):// ]]; then
+        proto="${raw%%://*}"
+        rest="${raw#*://}"
+        if [[ "$rest" != *"@"* ]] && [[ "$rest" == *:*:* ]]; then
+            local host port user pass
+            host=$(echo "$rest" | cut -d: -f1)
+            port=$(echo "$rest" | cut -d: -f2)
+            user=$(echo "$rest" | cut -d: -f3)
+            pass=$(echo "$rest" | cut -d: -f4-)
+            if [[ -n "$host" ]] && [[ -n "$port" ]] && [[ -n "$user" ]]; then
+                echo "${proto}://${user}:${pass}@${host}:${port}"
+                return
+            fi
+        fi
         echo "$raw"
         return
     fi
@@ -109,7 +128,9 @@ _parse_proxy() {
 
 # socks5://user:pass@host:port → host:port
 _proxy_host_port() {
-    echo "$1" | sed 's|.*@||' | sed 's|.*://||'
+    local normalized
+    normalized=$(_parse_proxy "$1")
+    echo "$normalized" | sed 's|.*@||' | sed 's|.*://||'
 }
 
 _proxy_reachable() {
@@ -1143,14 +1164,14 @@ fi
 # Proxy — optional: only if proxy file exists and is non-empty
 PROXY=""
 if [[ -f "$_env_dir/proxy" ]]; then
-    PROXY=$(tr -d '[:space:]' < "$_env_dir/proxy")
+    PROXY=$(_parse_proxy "$(tr -d '[:space:]' < "$_env_dir/proxy")")
 fi
 
 if [[ -n "$PROXY" ]]; then
     # pre-flight: proxy connectivity (pure bash, no fork)
-    _hp="${PROXY##*@}"; _hp="${_hp##*://}"
+    _hp=$(_proxy_host_port "$PROXY")
     _host="${_hp%%:*}"
-    _port="${_hp##*:}"
+    _port=$(echo "$_hp" | cut -d: -f2)
     if ! (echo >/dev/tcp/"$_host"/"$_port") 2>/dev/null; then
         echo "[cac] error: [$_name] proxy $_hp unreachable, refusing to start." >&2
         echo "[cac] hint: run 'cac check' to diagnose, or 'cac stop' to disable temporarily" >&2
@@ -1891,7 +1912,7 @@ _env_cmd_ls() {
         [[ -d "$env_dir" ]] || continue
         names+=("$(basename "$env_dir")")
         versions+=("$(_read "$env_dir/version" "system")")
-        local p; p=$(_read "$env_dir/proxy" "")
+        local p; p=$(_parse_proxy "$(_read "$env_dir/proxy" "")")
         if [[ -n "$p" ]] && [[ "$p" == *"://"*"@"* ]]; then
             p=$(echo "$p" | sed 's|://[^@]*@|://***@|')
         fi
@@ -2126,7 +2147,7 @@ cmd_env() {
 _relay_start() {
     local name="${1:-$(_current_env)}"
     local env_dir="$ENVS_DIR/$name"
-    local proxy; proxy=$(_read "$env_dir/proxy")
+    local proxy; proxy=$(_parse_proxy "$(_read "$env_dir/proxy")")
     [[ -z "$proxy" ]] && return 1
 
     local relay_js="$CAC_DIR/relay.js"
@@ -2289,7 +2310,7 @@ cmd_relay() {
 
             # --route flag: add direct route
             if [[ "$flag" == "--route" ]]; then
-                local proxy; proxy=$(_read "$env_dir/proxy")
+                local proxy; proxy=$(_parse_proxy "$(_read "$env_dir/proxy")")
                 _relay_add_route "$proxy"
             fi
 
@@ -2359,7 +2380,7 @@ cmd_check() {
     fi
 
     local env_dir="$ENVS_DIR/$current"
-    local proxy; proxy=$(_read "$env_dir/proxy" "")
+    local proxy; proxy=$(_parse_proxy "$(_read "$env_dir/proxy" "")")
 
     # Resolve version
     local ver; ver=$(_read "$env_dir/version" "")
@@ -2564,7 +2585,8 @@ cmd_check() {
                     fi
                 fi
             else
-                printf "\r    $(_green "✓") exit IP    $(_dim "run again to detect exit IP")\033[K\n"
+                printf "\r    $(_red "✗") exit IP    $(_dim "unable to verify via proxy")\033[K\n"
+                problems+=("exit IP undetected via proxy")
             fi
 
             # TUN conflict detection
