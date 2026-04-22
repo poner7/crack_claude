@@ -5,6 +5,16 @@ description: Release history and notable changes
 
 All notable changes to this project are documented here. Each entry links to the corresponding PR or issue.
 
+## v1.5.5-beta.2
+<sub>2026-04-22</sub>
+
+**Fix: wrapper startup regression in beta.1**
+
+`v1.5.5-beta.1` normalized legacy SOCKS5 proxy URIs inside the generated `claude` wrapper, but the wrapper accidentally called helper functions that only exist in the main `cac` script. Any proxied `claude` launch could fail immediately with `_parse_proxy: command not found`.
+
+- Inline proxy normalization inside the generated wrapper so proxied `claude` startup no longer depends on main-script helper functions.
+- Preserves the legacy SOCKS5 compatibility fix from beta.1 while restoring wrapper startup.
+
 ## v1.5.5-beta.1
 <sub>2026-04-22</sub>
 

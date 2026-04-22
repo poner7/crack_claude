@@ -204,12 +204,25 @@ fi
 # Proxy — optional: only if proxy file exists and is non-empty
 PROXY=""
 if [[ -f "$_env_dir/proxy" ]]; then
-    PROXY=$(_parse_proxy "$(tr -d '[:space:]' < "$_env_dir/proxy")")
+    PROXY=$(tr -d '[:space:]' < "$_env_dir/proxy")
+    if [[ "$PROXY" =~ ^(http|https|socks5):// ]]; then
+        _proto="${PROXY%%://*}"
+        _rest="${PROXY#*://}"
+        if [[ "$_rest" != *"@"* ]] && [[ "$_rest" == *:*:* ]]; then
+            _phost=$(echo "$_rest" | cut -d: -f1)
+            _pport=$(echo "$_rest" | cut -d: -f2)
+            _puser=$(echo "$_rest" | cut -d: -f3)
+            _ppass=$(echo "$_rest" | cut -d: -f4-)
+            if [[ -n "$_phost" ]] && [[ -n "$_pport" ]] && [[ -n "$_puser" ]]; then
+                PROXY="${_proto}://${_puser}:${_ppass}@${_phost}:${_pport}"
+            fi
+        fi
+    fi
 fi
 
 if [[ -n "$PROXY" ]]; then
     # pre-flight: proxy connectivity (pure bash, no fork)
-    _hp=$(_proxy_host_port "$PROXY")
+    _hp="${PROXY##*@}"; _hp="${_hp##*://}"
     _host="${_hp%%:*}"
     _port=$(echo "$_hp" | cut -d: -f2)
     if ! (echo >/dev/tcp/"$_host"/"$_port") 2>/dev/null; then

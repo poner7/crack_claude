@@ -5,6 +5,16 @@ description: 版本发布历史和重要变更
 
 所有重要变更记录在此，每个条目关联对应的 PR 或 Issue。
 
+## v1.5.5-beta.2
+<sub>2026-04-22</sub>
+
+**修复：beta.1 的 wrapper 启动回归**
+
+`v1.5.5-beta.1` 把旧版 SOCKS5 代理 URI 兼容逻辑放进了生成出来的 `claude` wrapper，但误调用了只存在于主 `cac` 脚本中的 helper 函数。结果是在启用代理的环境里，`claude` 启动时可能直接报 `_parse_proxy: command not found`。
+
+- 代理规范化逻辑改为在生成的 wrapper 内联实现，不再依赖主脚本 helper。
+- 保留 beta.1 对旧版 SOCKS5 写法的兼容，同时恢复 `claude` wrapper 的正常启动。
+
 ## v1.5.5-beta.1
 <sub>2026-04-22</sub>
 
