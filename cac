@@ -319,19 +319,31 @@ _detect_rc_file() {
     local shell_name
     shell_name=$(basename "${SHELL:-/bin/bash}")
     case "$shell_name" in
+        fish)
+            echo "$HOME/.config/fish/config.fish"
+            return
+            ;;
         zsh)
-            [[ -f "$HOME/.zshrc" ]] && { echo "$HOME/.zshrc"; return; }
+            echo "$HOME/.zshrc"
+            return
             ;;
         bash)
             [[ -f "$HOME/.bashrc" ]] && { echo "$HOME/.bashrc"; return; }
             [[ -f "$HOME/.bash_profile" ]] && { echo "$HOME/.bash_profile"; return; }
+            echo "$HOME/.bashrc"
+            return
             ;;
     esac
     # Fallback: try common rc files
     [[ -f "$HOME/.bashrc" ]] && { echo "$HOME/.bashrc"; return; }
     [[ -f "$HOME/.zshrc" ]] && { echo "$HOME/.zshrc"; return; }
     [[ -f "$HOME/.bash_profile" ]] && { echo "$HOME/.bash_profile"; return; }
-    echo ""
+    [[ -f "$HOME/.config/fish/config.fish" ]] && { echo "$HOME/.config/fish/config.fish"; return; }
+    echo "$HOME/.bashrc"
+}
+
+_is_fish_rc() {
+    [[ "$1" == */.config/fish/config.fish ]]
 }
 
 _install_method() {
@@ -360,14 +372,34 @@ _write_path_to_rc() {
         return 0
     fi
 
+    mkdir -p "$(dirname "$rc_file")"
+    [[ -f "$rc_file" ]] || touch "$rc_file"
+
     if grep -q '# >>> cac >>>' "$rc_file" 2>/dev/null; then
         echo "  ✓ PATH already exists in $rc_file, skipping"
         return 0
     fi
 
     # Compat: remove old format if present
-    if grep -q '\.cac/bin' "$rc_file" 2>/dev/null; then
+    if ! _is_fish_rc "$rc_file" && grep -q '\.cac/bin' "$rc_file" 2>/dev/null; then
         _remove_path_from_rc "$rc_file"
+    fi
+
+    if _is_fish_rc "$rc_file"; then
+        cat >> "$rc_file" << 'CACEOF'
+
+# >>> cac — Claude Code Cloak >>>
+fish_add_path --move --path "$HOME/.cac/bin" >/dev/null 2>&1
+function cac
+    command cac $argv
+    set -l _rc $status
+    fish_add_path --move --path "$HOME/.cac/bin" >/dev/null 2>&1
+    return $_rc
+end
+# <<< cac — Claude Code Cloak <<<
+CACEOF
+        echo "  ✓ PATH written to $rc_file"
+        return 0
     fi
 
     cat >> "$rc_file" << 'CACEOF'

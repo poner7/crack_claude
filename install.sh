@@ -31,9 +31,9 @@ curl -fsSL "$REPO/cac" -o "$BIN_DIR/cac"
 chmod +x "$BIN_DIR/cac"
 green "✓"
 
-# 3. 初始化（cac setup 会自动写入 PATH 到 shell rc 文件）
+# 3. 初始化（触发自动写入 PATH 到 shell rc 文件）
 export PATH="$BIN_DIR:$PATH"
-"$BIN_DIR/cac" setup
+"$BIN_DIR/cac" env ls >/dev/null 2>&1 || true
 
 echo
 green "✓ 安装完成"
@@ -41,7 +41,9 @@ echo
 
 # 4. 提示生效方式
 RC_FILE=""
-if [[ -f "$HOME/.zshrc" ]]; then
+if [[ "$(basename "${SHELL:-}")" == "fish" ]]; then
+    RC_FILE="$HOME/.config/fish/config.fish"
+elif [[ -f "$HOME/.zshrc" ]]; then
     RC_FILE="$HOME/.zshrc"
 elif [[ -f "$HOME/.bashrc" ]]; then
     RC_FILE="$HOME/.bashrc"
@@ -55,4 +57,4 @@ if [[ -n "$RC_FILE" ]]; then
     echo
 fi
 echo "然后添加第一个代理配置："
-echo "  cac add <名字> <host:port:user:pass>"
+echo "  cac env create <名字> -p <host:port:user:pass>"
